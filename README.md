@@ -7,7 +7,9 @@ Zmiana formatu koloru:
 https://lvgl.io/tools/imageconverter
 
 Fragemnt kodu jaki trzeba podmienić w obrazku.h:
+
 #ifndef OBRAZ_H
+
 #define OBRAZ_H
 
 #include <Arduino.h>  // Dla ESP32
@@ -21,7 +23,11 @@ const uint16_t obraz[] PROGMEM = {
 #endif
 
 Bibloteki:
+
 Adafruit ST7735 and ST7789 Library
+
 Adafruit GFX Library
+
 https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+
 ESP32 by Espressif Systems
