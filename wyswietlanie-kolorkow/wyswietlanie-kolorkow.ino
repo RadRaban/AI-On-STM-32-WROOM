@@ -1,7 +1,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
-#include "zdjecie.h"
+#include "jujutsu.h"
 
 
 #define TFT_CS     5
@@ -36,7 +36,7 @@ void setup() {
 
 
     // Wyświetlenie obrazu
-    tft.drawRGBBitmap(0, 0, obraz, 160, 128);
+    tft.drawRGBBitmap(0, 0, jujutsu, 160, 128);
 }
 
 
