@@ -1,7 +1,7 @@
 Pracuję na kontrolerze ESP WROOM 32D i wyświetlaczu LCD ST7735S
 
 Konwert pliku na rozmiar:
-https://www.img2go.com/result#j=3a07dca5-01fe-4800-a342-de0bd0325f22
+https://www.img2go.com/resize-image
 
 Zmiana formatu koloru:
 https://lvgl.io/tools/imageconverter
