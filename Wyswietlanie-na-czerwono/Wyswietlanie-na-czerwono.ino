@@ -1,7 +1,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
-#include "zdjecie.h"
+#include "obraz.h"
 
 
 #define TFT_CS     5
