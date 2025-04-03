@@ -1,7 +1,11 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
+<<<<<<< Updated upstream
 #include "jujutsu.h"
+=======
+#include "frieren.h"
+>>>>>>> Stashed changes
 
 
 #define TFT_CS     5
@@ -36,7 +40,11 @@ void setup() {
 
 
     // Wyświetlenie obrazu
+<<<<<<< Updated upstream
     tft.drawRGBBitmap(0, 0, jujutsu, 160, 128);
+=======
+    tft.drawRGBBitmap(0, 0, frieren, 160, 128);
+>>>>>>> Stashed changes
 }
 
 
