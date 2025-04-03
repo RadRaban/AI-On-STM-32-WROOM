@@ -4,7 +4,7 @@ Konwert pliku na rozmiar:
 https://www.img2go.com/resize-image
 
 Zmiana formatu koloru:
-https://lvgl.io/tools/imageconverter
+http://www.rinkydinkelectronics.com/_t_doimageconverter565.php
 
 Fragemnt kodu jaki trzeba podmienić w obrazku.h:
 
