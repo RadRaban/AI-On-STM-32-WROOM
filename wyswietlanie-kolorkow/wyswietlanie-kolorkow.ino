@@ -1,7 +1,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include <SPI.h>
-#include "jujutsu.h"
+#include "roz.h"
 
 
 #define TFT_CS     5
@@ -24,19 +24,19 @@ void setup() {
 
     // Inicjalizacja wyświetlacza
     tft.initR(INITR_GREENTAB);
-    tft.setRotation(1);
+    tft.setRotation(0);
 
 
     // Test kolorów
-    tft.fillScreen(ST77XX_RED);
-    delay(1000);
-    tft.fillScreen(ST77XX_GREEN);
-    delay(1000);
-    tft.fillScreen(ST77XX_BLUE);
+    //tft.fillScreen(ST77XX_RED);
+    //delay(1000);
+    //tft.fillScreen(ST77XX_GREEN);
+    //delay(1000);
+    //tft.fillScreen(ST77XX_BLUE);
 
 
     // Wyświetlenie obrazu
-    tft.drawRGBBitmap(0, 0, jujutsu, 160, 128);
+    tft.drawRGBBitmap(0, 0, roz, 128, 160);
 }
 
 
