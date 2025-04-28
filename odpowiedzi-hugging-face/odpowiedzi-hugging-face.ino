@@ -46,14 +46,19 @@ String askChat(String prompt) {
   if (WiFi.status() == WL_CONNECTED) {
     HTTPClient http;
     
-    // Adres modelu GPT-2
-// Przykład z DistilGPT-2 (mniejsza wersja, szybsza)
-    //http.begin("https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct"); //need pro
+    //http.begin("https://api-inference.huggingface.co/models/meta-llama/Llama-3.3-70B-Instruct"); //need pro nawet z kreditsami
     //http.begin("https://api-inference.huggingface.co/models/openchat/openchat_3.5"); //14GB
-    http.begin("https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"); //nawet rozumie i odpowiada co 3 zdanie ale po polsku mu nie idzie
-    //http.begin("https://api-inference.huggingface.co/models/openai-community/gpt2"); //subscribe to pro
-    //http.begin("https://api-inference.huggingface.co/models/openai-community/openai-gpt"); //subscribe to pro
-    //http.begin("https://api-inference.huggingface.co/models/distilgpt2"); //subscribe to pro
+    //http.begin("https://api-inference.huggingface.co/models/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"); //nawet rozumie i odpowiada co 3 zdanie ale po polsku mu nie idzie
+    //http.begin("https://api-inference.huggingface.co/models/openai-community/gpt2"); //http bład dekodowania
+    //http.begin("https://api-inference.huggingface.co/models/openai-community/openai-gpt"); //bład dekodowania
+    //http.begin("https://api-inference.huggingface.co/models/distilgpt2"); // odlatuje w kosmos i zaczyna cytować powieści np o gazowaniu żydów a ja tylko powiedziałem "hi my friend"
+    //http.begin("https://api-inference.huggingface.co/models/eryk-mazus/polka-1.1b-chat");//blad dekodowania
+    //http.begin("https://api-inference.huggingface.co/models/speakleash/Bielik-11B-v2.3-Instruct"); //22GB
+    //http.begin("https://api-inference.huggingface.co/models/facebook/mbart-large-50-many-to-many-mmt"); //http11
+    //http.begin("https://api-inference.huggingface.co/models/CohereForAI/c4ai-command-r-v01"); //69GB
+    http.begin("https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3"); //odpowiada po polsku w miarę ale no znowu kredity mi się skonczyły trzeba kolejne multikonto zalożyć
+    //http.begin("https://api-inference.huggingface.co/models/CohereForAI/c4ai-command-r-plus-08-2024"); //nie sprawdzałem jeszcze
+    //http.begin("https://api-inference.huggingface.co/models/"); //
     http.addHeader("Content-Type", "application/json");
     http.addHeader("Authorization", "Bearer " + String(openai_api_key));  // Klucz API z Hugging Face
     
