@@ -2,6 +2,7 @@ Pracuję na kontrolerze ESP WROOM 32D i wyświetlaczu LCD ST7735S
 
 Konwert pliku na rozmiar:
 https://www.img2go.com/resize-image
+128 x 160
 
 Zmiana formatu koloru:
 http://www.rinkydinkelectronics.com/_t_doimageconverter565.php
@@ -17,7 +18,8 @@ Fragemnt kodu jaki trzeba podmienić w obrazku.h:
 
 const uint16_t obraz[] PROGMEM = {
 
-0x95, 0xdd, 0x99, 0xfe, 0xfb, 0xfe, 0xda, 0xfe, 0xda, 0xfe, 0xf9, 0xfe, 0x39, 0xff, 0x5a, 0xff, 0x3b, 0xff, 0xfa, 0xfe, 0x1a, 0xff, 0x18, 0xff, 0xd6, 0xfe, 
+0xFA18, 0xFA18, 0xFA18, 0xFA18, 0xFA19, 0xFA19, 0xFA39, 0xFA39, 0xFA39, 0xFA39, 0xFA39, 0xFA19, 0xFA19, 0xFA19, 0xFA19, 0xFA19,   // 0x0010 (16) pixels
+
 
 };
 #endif
@@ -28,6 +30,6 @@ Adafruit ST7735 and ST7789 Library
 
 Adafruit GFX Library
 
-https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+[https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers](https://www.silabs.com/documents/public/software/CP210x_Windows_Drivers.zip)
 
 ESP32 by Espressif Systems

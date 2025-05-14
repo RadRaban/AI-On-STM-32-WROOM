@@ -23,7 +23,7 @@ void setup() {
 
 
     // Inicjalizacja wyświetlacza
-    tft.initR(INITR_GREENTAB);
+    tft.initR(INITR_BLACKTAB);
     tft.setRotation(0);
 
 
