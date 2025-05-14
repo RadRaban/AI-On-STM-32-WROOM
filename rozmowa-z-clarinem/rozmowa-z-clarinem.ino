@@ -31,19 +31,28 @@ void loop() {
       http.addHeader("Authorization", "Bearer Zc5hXjQNGnRy64T4wF9QQz9HnNG5KBtYzZNnvK_lQOedR_vm");
       http.addHeader("Content-Type", "application/json");
       http.addHeader("Accept", "application/json");
+      http.setTimeout(10000); // 10 sekund na odpowiedź
+      http.setReuse(false);
 
-      // Budujemy JSON dynamicznie
-      String requestBody = "{";
-      requestBody += "\"model\": \"bielik\",";
-      requestBody += "\"messages\": [{\"role\": \"user\", \"content\": \"" + userInput + "\"}]";
-      requestBody += "}";
+      // Budujemy JSON bezpiecznie
+      StaticJsonDocument<1024> requestJson; // można zwiększyć jeśli potrzebne
+      requestJson["model"] = "bielik";
+      requestJson["max_tokens"] = 100; // lub np. 150
+      JsonArray messages = requestJson.createNestedArray("messages");
+      JsonObject msg = messages.createNestedObject();
+      msg["role"] = "user";
+      msg["content"] = userInput;
+
+      String requestBody;
+      serializeJson(requestJson, requestBody);  // zamienia JSON na String
 
       int httpResponseCode = http.POST(requestBody);
 
       if (httpResponseCode > 0) {
         String response = http.getString();
 
-        StaticJsonDocument<2048> doc;
+        // Większy bufor dla dużych odpowiedzi
+        DynamicJsonDocument doc(6144); 
         DeserializationError error = deserializeJson(doc, response);
 
         if (!error) {
@@ -66,3 +75,4 @@ void loop() {
     }
   }
 }
+
