@@ -1,12 +1,36 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include <SPI.h>
+#include "roz.h"
+#include "roz_1.h"
+#include "roz_2.h"
+#include "roz_3.h"
+
+#define TFT_CS     5
+#define TFT_RST    4
+#define TFT_DC     2
+#define TFT_SCK    18   // CLK
+#define TFT_MOSI   23   // MOSI
+
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 const char* ssid = "NORA 24";
 const char* password = "eloelo520";
 
 void setup() {
   Serial.begin(115200);
+
+  // Inicjalizacja SPI z ręcznie ustawionymi pinami
+  SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);  
+  // Inicjalizacja wyświetlacza
+  tft.initR(INITR_BLACKTAB);
+  tft.setRotation(0);
+  // Wyświetlenie obrazu
+  tft.drawRGBBitmap(0, 0, roz, 128, 160);
+
   WiFi.begin(ssid, password);
   
   while (WiFi.status() != WL_CONNECTED) {
@@ -48,6 +72,14 @@ void loop() {
 
       int httpResponseCode = http.POST(requestBody);
 
+      //wysyłanie
+      tft.drawRGBBitmap(0, 0, roz, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
       if (httpResponseCode > 0) {
         String response = http.getString();
 
@@ -70,9 +102,19 @@ void loop() {
       }
 
       http.end();
+      //koniec wysyłania
+
+      tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz, 128, 160);
     } else {
       Serial.println("❌ Brak połączenia WiFi");
     }
+
   }
 }
 
