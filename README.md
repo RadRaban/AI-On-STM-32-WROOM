@@ -30,6 +30,6 @@ Adafruit ST7735 and ST7789 Library
 
 Adafruit GFX Library
 
-https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers
+[https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers](https://www.silabs.com/documents/public/software/CP210x_Windows_Drivers.zip)
 
 ESP32 by Espressif Systems
