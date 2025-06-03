@@ -97,47 +97,6 @@ void setup() {
 
   audio.connecttoFS(SD, "/mp3/0001.mp3");
 
-  delay(10000);
-
-  text = "Twoja stara"; // <- tekst do przeczytania
-  url = "/kappa/v2/speech?voice=pl-PL-Wavenet-A&text=" + text;
-
-  // Żądanie HTTP GET
-  client.print(String("GET ") + url + " HTTP/1.1\r\n" +
-               "Host: " + host + "\r\n" +
-               "Connection: close\r\n\r\n");
-
-  // Czekanie na odpowiedź i pomijanie nagłówków HTTP
-  while (client.connected()) {
-    String line = client.readStringUntil('\n');
-    if (line == "\r") break;
-  }
-
-  // Zapis pliku MP3 na SD
-  file = SD.open("/mp3/0002.mp3", FILE_WRITE);
-  if (!file) {
-    Serial.println("Nie można otworzyć pliku do zapisu.");
-    return;
-  }
-
-  Serial.println("Pobieranie i zapisywanie...");
-  bytes = 0;
-  while (client.available()) {
-    char c = client.read();
-    file.write(c);
-    bytes++;
-  }
-
-  file.close();
-  Serial.print("Zapisano 0002.mp3 na SD. Bajtów: ");
-  Serial.println(bytes);
-  audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  audio.setVolume(5); 
-
-  // Odtwarzaj pierwszy plik
-  Serial.println ("Otwieram plik: 0002.mp3");
-
-  audio.connecttoFS(SD, "/mp3/0002.mp3");
 }
 
 void loop() {
