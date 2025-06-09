@@ -4,9 +4,9 @@
 #include "roz.h"
 
 
-#define TFT_CS     5
+#define TFT_CS     2
 #define TFT_RST    4
-#define TFT_DC     2
+#define TFT_DC     25
 #define TFT_SCK    18   // CLK
 #define TFT_MOSI   23   // MOSI
 
@@ -24,7 +24,7 @@ void setup() {
 
     // Inicjalizacja wyświetlacza
     tft.initR(INITR_BLACKTAB);
-    tft.setRotation(0);
+    tft.setRotation(2);
 
 
     // Test kolorów
@@ -34,6 +34,8 @@ void setup() {
     //delay(1000);
     //tft.fillScreen(ST77XX_BLUE);
 
+    tft.fillScreen(ST77XX_BLACK);
+    delay(100);
 
     // Wyświetlenie obrazu
     tft.drawRGBBitmap(0, 0, roz, 128, 160);

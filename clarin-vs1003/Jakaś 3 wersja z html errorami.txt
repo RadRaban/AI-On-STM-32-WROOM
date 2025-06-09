@@ -5,9 +5,6 @@
 #include <SD.h>
 #include <Adafruit_VS1053.h>
 #include <ArduinoJson.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_ST7735.h>
-#include "roz.h"
 
 // KONFIGURACJA WI-FI
 const char* ssid = "NORA 24";
@@ -20,18 +17,10 @@ const char* clarinToken = "Bearer Zc5hXjQNGnRy64T4wF9QQz9HnNG5KBtYzZNnvK_lQOedR_
 const char* clarinURL = "https://services.clarin-pl.eu/api/v1/oapi/chat/completions";
 // Piny VS1053
 #define VS1053_RESET  15
-#define VS1053_CS     12
-#define VS1053_DCS    21
+#define VS1053_CS     32
+#define VS1053_DCS    33
 #define CARDCS         5  // SD card CS
 #define VS1053_DREQ    22
-
-#define TFT_CS     2
-#define TFT_RST    4
-#define TFT_DC     25
-#define TFT_SCK    18   // CLK
-#define TFT_MOSI   23   // MOSI
-
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 bool fetchWithRetry(const String& text, const char* filename, int maxAttempts = 3, int minSize = 2000);
 
@@ -40,19 +29,6 @@ Adafruit_VS1053_FilePlayer musicPlayer =
 
 void setup() {
   Serial.begin(115200);
-
-  // Inicjalizacja SPI z ręcznie ustawionymi pinami
-  SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);  
-
-  // Inicjalizacja wyświetlacza
-  tft.initR(INITR_BLACKTAB);
-  tft.setRotation(2);
-  tft.fillScreen(ST77XX_BLACK);
-  delay(100);
-
-  // Wyświetlenie obrazu
-  tft.drawRGBBitmap(0, 0, roz, 128, 160);
-
   delay(500);
 if (!musicPlayer.begin()) {
     Serial.println("Nie znaleziono VS1053");
@@ -137,6 +113,7 @@ bool fetchWithRetry(const String& text, const char* filename, int maxAttempts, i
     }
 
     size_t fileSize = file.size();
+
     file.close();
 
     if (fileSize >= minSize) {
@@ -164,6 +141,8 @@ bool fetchSpeechToFile(const String& text, const char* filename) {
   Serial.print("Tekst w download:" + text);
   if (!client.connect(host, httpsPort)) {
     Serial.println("Nie można połączyć się z serwerem.");
+    Serial.printf("Błąd połączenia do %s:%d\n", host, httpsPort);
+    Serial.printf("Status WiFi: %d\n", WiFi.status());
     return false;
   }
 
@@ -176,6 +155,7 @@ bool fetchSpeechToFile(const String& text, const char* filename) {
   // Pomijanie nagłówków HTTP
   while (client.connected()) {
     String line = client.readStringUntil('\n');
+    Serial.println(line); 
     if (line == "\r") break;
   }
 
@@ -186,11 +166,16 @@ bool fetchSpeechToFile(const String& text, const char* filename) {
     return false;
   }
   // Zapis danych mp3
+  int bytes = 0;
   while (client.available()) {
-    file.write(client.read());
+    int c = client.read();
+    if (c < 0) break;
+    file.write(c);
+    bytes++;
   }
-
+  file.flush();  // <-- dodaj to!
   file.close();
+  Serial.printf("Zapisano %d bajtów do pliku.\n", bytes);
 
   client.stop();
 
