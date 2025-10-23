@@ -1,0 +1,16 @@
+Test 1 pamięć flash
+Działała na tym samym VSPI z VS1053 i miała konflikt nie dało się pipczeć po inicjalizacji FLASH
+
+Test 2 pamięć flash ale na osobnym HSPI i VS1053 na VSPI 
+problemy były długie poprawki nie pamiętam ale nie działa
+
+Test 3 VS1053 na HSPI 
+Po prostu nie działa
+
+Test 4 Karta SD i VS1053
+Przy podpięciu masy i tym samym wyłączeniu głośnika zapis działa i program wykonuje pętle zapisu tekstu po odłączeniu masy program wywala błędy zapętlające się a autoresecie które jest ciężko zatrzymać
+
+Test 5 Czytnik kart SD na HSPI i VS1053 na VSPI
+No kurwa nic nie działa robi pętle autoresetu
+
+Test 6 Jebać HSPI robimy wszystko na VSPI z Czytnikiem i VS1053

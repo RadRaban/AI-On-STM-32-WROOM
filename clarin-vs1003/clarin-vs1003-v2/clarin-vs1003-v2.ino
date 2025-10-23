@@ -2,36 +2,75 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <SPI.h>
-#include <SD.h>
 #include <Adafruit_VS1053.h>
 #include <ArduinoJson.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include "roz.h"
+#include "roz_1.h"
+#include "roz_2.h"
+#include "roz_3.h"
+#include "BluetoothSerial.h"
+//#include <FlashStorage.h>
 
 // KONFIGURACJA WI-FI
 const char* ssid = "NORA 24";
 const char* password = "eloelo520";
-const char* host = "translate.google.com";
-//const char* host = "api.streamelements.com";
+const char* host = "api.streamelements.com";
 const int httpsPort = 443;
 const int tokeny = 100;
 const char* clarinToken = "Bearer Zc5hXjQNGnRy64T4wF9QQz9HnNG5KBtYzZNnvK_lQOedR_vm";
 const char* clarinURL = "https://services.clarin-pl.eu/api/v1/oapi/chat/completions";
+
 // Piny VS1053
-#define VS1053_RESET  -1
-#define VS1053_CS     32
-#define VS1053_DCS    33
+#define VS1053_RESET  15
+#define VS1053_CS     12
+#define VS1053_DCS    21
 #define CARDCS         5  // SD card CS
 #define VS1053_DREQ    22
+
+#define TFT_CS     2
+#define TFT_RST    4
+#define TFT_DC     25
+#define TFT_SCK    18   // CLK
+#define TFT_MOSI   23   // MOSI
+
+#define FLASH_CS 5   // GPIO dla CS
+#define FLASH_SCK 18
+#define FLASH_MOSI 23
+#define FLASH_MISO 19
+
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 Adafruit_VS1053_FilePlayer musicPlayer =
   Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
+BluetoothSerial SerialBT;
+// Sprawdzenie PSRAM
 void setup() {
   Serial.begin(115200);
-  delay(500);
-if (!musicPlayer.begin()) {
-    Serial.println("Nie znaleziono VS1053");
-    while (1);
+
+  SPI.begin(FLASH_SCK, FLASH_MISO, FLASH_MOSI, FLASH_CS);  
+
+  SerialBT.begin("ESP32-Terminal"); // Nazwa Bluetooth ESP32
+Serial.println("Bluetooth aktywowany! Czekam na połączenie...");
+
+  // Inicjalizacja wyświetlacza
+  tft.initR(INITR_BLACKTAB);
+  tft.setRotation(2);
+  tft.fillScreen(ST77XX_BLACK);
+  delay(100);
+
+  // Wyświetlenie obrazu
+  tft.drawRGBBitmap(0, 0, roz, 128, 160);
+
+
+  if (ESP.getPsramSize() > 0) {
+    Serial.println("PSRAM dostępny!");
+  } else {
+    Serial.println("Brak PSRAM, zmiana pamięci RAM może nie być możliwa.");
   }
+
   // Połączenie z Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Łączenie z WiFi");
@@ -40,106 +79,134 @@ if (!musicPlayer.begin()) {
     Serial.print(".");
   }
   Serial.println("\nPołączono z WiFi!");
-
-  if (!musicPlayer.begin()) {
-    Serial.println("Nie znaleziono VS1053");
-    while (1);
-  }
-
-  if (!SD.begin(CARDCS)) {
-    Serial.println("Błąd SD!");
-    while (1);
-  }
-
-  musicPlayer.setVolume(10, 10);
-  musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);
-
-
-  // if (nagrajAudio("/mp3/test.ogg")) {
-  //   Serial.println("Plik nagrany poprawnie.");
-  // } else {
-  //   Serial.println("Problem z nagraniem pliku.");
-  // }
 }
 
-void loop() {
-  musicPlayer.begin();
-  musicPlayer.setVolume(10, 10);
-  musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);
-
-  Serial.println("Podaj tekst do przeczytania: ");
-  String userText = readSerialInput();
-  String odpowiedz = wyslijZapytanie(userText);
-  Serial.print("Wczytano: ");
-  Serial.println(odpowiedz);
-
-  if(fetchSpeechToFile(odpowiedz, "/mp3/speach.mp3")){
-    //if (SD.exists("/mp3/speach.mp3") && SD.open("/mp3/speach.mp3").size() > 1000 && SD.open("/mp3/speach.mp3").size() != 1707) {
-      musicPlayer.playFullFile("/mp3/0001.mp3");
-      while(musicPlayer.playingMusic){
-        delay(100);
-      }
-      musicPlayer.playFullFile("/mp3/speach.mp3");
-      while(musicPlayer.playingMusic){
-        delay(100);
-      }
-    //}
-  }
-  delay(500);
-}
-
-// ==== FUNKCJA DO TTS ====
-bool fetchSpeechToFile(const String& text, const char* filename) {
-  //audio.stop();
+// Pobieranie pliku do pamięci RAM zamiast SD
+bool fetchSpeechToRAM(const String& text, uint8_t** buffer, size_t* dataSize) {
   WiFiClientSecure client;
-  client.setInsecure(); // NIE używaj w produkcji
+  client.setInsecure();
 
-  //String url = "/kappa/v2/speech?voice=pl-PL-Wavenet-A&text=" + urlEncode(text);
-  String url = "/translate_tts?ie=UTF-8&q=" + urlEncode(text) + "&tl=pl&client=tw-ob";
-  Serial.print("Tekst w download:" + text);
+  String url = "/kappa/v2/speech?voice=pl-PL-Wavenet-A&text=" + urlEncode(text);
   if (!client.connect(host, httpsPort)) {
     Serial.println("Nie można połączyć się z serwerem.");
     return false;
   }
 
-  // Wysłanie zapytania GET
   client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                "Host: " + host + "\r\n" +
+               "User-Agent: Mozilla/5.0\r\n" +
                "Connection: close\r\n\r\n");
 
-  // Pomijanie nagłówków HTTP
-  while (client.connected() || client.available()) {
+  while (client.connected()) {
     String line = client.readStringUntil('\n');
     if (line == "\r") break;
   }
 
-
-  // Otwórz plik do zapisu
-  File file = SD.open(filename, FILE_WRITE);
-  if (!file) {
-    Serial.println("Nie można otworzyć pliku do zapisu.");
+  *dataSize = client.available();
+  *buffer = (uint8_t*)ps_malloc(*dataSize);
+  if (!(*buffer)) {
+    Serial.println("Nie udało się przydzielić pamięci!");
     return false;
   }
-  int totalBytes = 0;
-  // Zapis danych mp3
-  while (client.connected() || client.available()) {
 
-    file.write(client.read());
+  size_t index = 0;
+  while (client.available()) {
+    (*buffer)[index++] = client.read();
   }
 
-  file.close();
-  delay(1000);
   client.stop();
-
-  if (totalBytes < 1000) { // np. mniej niż 1kB to podejrzanie mało
-    Serial.println("⚠️ Zbyt mały plik mp3 — prawdopodobnie błąd pobierania.");
-    SD.remove(filename); // Usuń niekompletny plik
-    return false;
-  }
-  Serial.println(" ");
-  Serial.println("✅ Plik MP3 zapisany, rozmiar: ");
-  Serial.println(totalBytes);
+  Serial.printf("Dane pobrane do RAM (%d bajtów)\n", *dataSize);
   return true;
+}
+
+// Odtwarzanie pliku z pamięci RAM
+void playFromRAM(uint8_t* buffer, size_t dataSize) {
+  musicPlayer.playData(buffer, dataSize);
+}
+
+void loop() {
+  String userText = "";
+  
+  if (SerialBT.available()) { // Sprawdzenie czy są dostępne dane
+    while (SerialBT.available()) {
+      char c = SerialBT.read();
+      if (c == '\n') break; // Koniec wpisywania, wysyłamy zapytanie
+      userText += c;
+    }
+
+    // Sprawdzenie, czy tekst nie jest pusty
+
+      Serial.print("Wczytano: ");
+      Serial.println(userText);
+
+      String odpowiedz = wyslijZapytanie(userText);
+      tft.drawRGBBitmap(0, 0, roz, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+      
+      Serial.print("Odebrano: ");
+      Serial.println(odpowiedz);
+      SerialBT.print("Odebrano: ");
+      SerialBT.println(odpowiedz);
+      tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+      delay(300);
+      tft.drawRGBBitmap(0, 0, roz, 128, 160);
+  }
+
+  
+  // uint8_t* audioBuffer;
+  // size_t dataSize;
+  // if (fetchSpeechToRAM(userText, &audioBuffer, &dataSize)) {
+  //   playFromRAM(audioBuffer, dataSize);
+  //   free(audioBuffer);
+  // }
+
+  delay(500);
+  
+}
+
+
+String urlEncode(const String& str) {
+  String encoded = "";
+  for (size_t i = 0; i < str.length(); i++) {
+    unsigned char c = str[i];
+    if ((c >= 'a' && c <= 'z') ||
+        (c >= 'A' && c <= 'Z') ||
+        (c >= '0' && c <= '9')) {
+      encoded += (char)c;
+    } else if (c == ' ') {
+      encoded += '+';
+    } else {
+      encoded += '%';
+      if (c < 16) encoded += '0';
+      encoded += String(c, HEX);
+    }
+  }
+  return encoded;
+}
+
+String readSerialBTInput() {
+  String input = "";
+  while (true) {
+    if (SerialBT.available()) {
+      char c = SerialBT.read();
+      if (c == '\n' || c == '\r') {
+        if (input.length() > 0) {
+          return input;  // zwracamy wpisany tekst
+        }
+      } else {
+        input += c;
+      }
+    }
+  }
 }
 
 String readSerialInput() {
@@ -158,44 +225,6 @@ String readSerialInput() {
   }
 }
 
-// ===== FUNKCJA URL-ENCODE =====
-String urlEncode(const String &str) {
-  String encoded = "";
-  char c;
-  char buf[4];
-  for (int i = 0; i < str.length(); i++) {
-    c = str.charAt(i);
-    if (isalnum(c)) {
-      encoded += c;
-    } else if (c == ' ') {
-      encoded += '+';
-    } else {
-      sprintf(buf, "%%%02X", (unsigned char)c);
-      encoded += buf;
-    }
-  }
-  return encoded;
-}
-
-bool nagrajAudio(const String& filename) {
-
-  // Rozpocznij nagrywanie (void, nie zwraca wartości)
-  musicPlayer.startRecordOgg(filename.c_str());
-
-  Serial.println("Nagrywanie trwa 10 sekund...");
-  unsigned long start = millis();
-  while (millis() - start < 10000) {
-    delay(100);
-  }
-
-  // Zakończ nagrywanie (void)
-  musicPlayer.stopRecordOgg();
-
-  Serial.println("Nagrywanie zakończone i zapisane.");
-
-  return true;
-}
-
 String wyslijZapytanie(String inputText) {
   if (WiFi.status() != WL_CONNECTED) return "";
 
@@ -204,7 +233,8 @@ String wyslijZapytanie(String inputText) {
   http.addHeader("Authorization", clarinToken);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Accept", "application/json");
-
+  http.setTimeout(10000); // 10 sekund na odpowiedź
+  http.setReuse(false);
   StaticJsonDocument<1024> requestJson;
   requestJson["model"] = "bielik";
   requestJson["max_tokens"] = tokeny;

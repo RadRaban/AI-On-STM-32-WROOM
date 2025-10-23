@@ -12,22 +12,23 @@ const char* password = "eloelo520";
 const char* host = "api.streamelements.com";
 const int httpsPort = 443;
 // Piny VS1053
+//in mic out glośnik jak podpięcie według schematu z tymi dolnymi tak jak jest
 #define VS1053_RESET  15
 #define VS1053_CS     32
 #define VS1053_DCS    33
 #define CARDCS         5  // SD card CS
-#define VS1053_DREQ    22
+#define VS1053_DREQ    35
+#define MOSI 23
+#define MISO 19
+#define SCK  18
+#define CARD         5
 
 Adafruit_VS1053_FilePlayer musicPlayer =
-  Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
+  Adafruit_VS1053_FilePlayer(MOSI, MISO, SCK, VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
 void setup() {
   Serial.begin(115200);
   delay(500);
-if (!musicPlayer.begin()) {
-    Serial.println("Nie znaleziono VS1053");
-    while (1);
-  }
   // Połączenie z Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Łączenie z WiFi");
@@ -41,14 +42,17 @@ if (!musicPlayer.begin()) {
     Serial.println("Nie znaleziono VS1053");
     while (1);
   }
-
-  if (!SD.begin(CARDCS)) {
-    Serial.println("Błąd SD!");
-    while (1);
-  }
-
   musicPlayer.setVolume(10, 10);
   musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);
+  testGlosnika ();
+ delay(1000);
+ //SPIClass spiSD(HSPI);  // użyj HSPI
+ //spiSD.begin(14, 12, 13, CARD);
+ if (!SD.begin(CARD)) {
+   Serial.println("Błąd SD!");
+   while (1);
+ }
+
 
 
   // if (nagrajAudio("/mp3/test.ogg")) {
@@ -60,6 +64,7 @@ if (!musicPlayer.begin()) {
 
 void loop() {
   Serial.println("Podaj tekst do przeczytania: ");
+  testGlosnika ();
   String userText = readSerialInput();
   Serial.print("Wczytano: ");
   Serial.println(userText);
@@ -72,46 +77,68 @@ void loop() {
   }
 }
 
-// ==== FUNKCJA DO TTS ====
-bool fetchSpeechToFile(const String& text, const char* filename) {
-  //audio.stop();
-  WiFiClientSecure client;
-  client.setInsecure(); // NIE używaj w produkcji
+void testGlosnika () {
+  Serial.println("🔊 Generuję pipnięcie...");
+  musicPlayer.sineTest(0x44, 1000);  // 0x44 = ~1kHz, 500ms
+  Serial.println("✅ Pipnięcie zakończone.");
+}
 
-  String url = "/kappa/v2/speech?voice=pl-PL-Wavenet-A&text=" + urlEncode(text);
-  Serial.print("Tekst w download:" + text);
+// ==== FUNKCJA DO TTS ====
+bool fetchSpeechToFile(const String& text, const String& filename) {
+  WiFiClientSecure client;
+  client.setInsecure();
+  musicPlayer.stopPlaying();  // zatrzymaj VS1053
+  delay(100);
+
+  String safeText = text;
+  if (safeText.length() > 300) {
+    Serial.println("⚠️ Tekst za długi, skracam.");
+    safeText = safeText.substring(0, 300);
+  }
+
+  String url = "/kappa/v2/speech?voice=pl-PL-Wavenet-A&text=" + urlEncode(safeText);
+  Serial.println("🔽 Pobieram MP3 dla: " + safeText);
+
   if (!client.connect(host, httpsPort)) {
-    Serial.println("Nie można połączyć się z serwerem.");
+    Serial.println("❌ Brak połączenia z serwerem.");
     return false;
   }
 
-  // Wysłanie zapytania GET
   client.print(String("GET ") + url + " HTTP/1.1\r\n" +
                "Host: " + host + "\r\n" +
                "Connection: close\r\n\r\n");
 
-  // Pomijanie nagłówków HTTP
   while (client.connected()) {
     String line = client.readStringUntil('\n');
     if (line == "\r") break;
   }
 
-  // Otwórz plik do zapisu
-  File file = SD.open(filename, FILE_WRITE);
+  if (SD.exists(filename.c_str())) {
+    SD.remove(filename.c_str());
+  }
+
+  File file = SD.open(filename.c_str(), FILE_WRITE);
   if (!file) {
-    Serial.println("Nie można otworzyć pliku do zapisu.");
+    Serial.println("❌ Nie można otworzyć pliku do zapisu.");
     return false;
   }
 
-  // Zapis danych mp3
+  uint8_t buffer[128];
+  unsigned long start = millis();
   while (client.available()) {
-    file.write(client.read());
+    size_t len = client.read(buffer, sizeof(buffer));
+    if (len > 0) {
+      file.write(buffer, len);
+    }
+    if (millis() - start > 5000) {
+      Serial.println("⚠️ Timeout pobierania.");
+      break;
+    }
   }
+
   file.close();
-
   client.stop();
-
-  Serial.println("Pobieranie zakończone");
+  Serial.println("✅ Pobieranie zakończone.");
   return true;
 }
 

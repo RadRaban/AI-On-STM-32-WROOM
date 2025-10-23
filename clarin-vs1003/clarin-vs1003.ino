@@ -8,6 +8,10 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include "roz.h"
+#include "roz_1.h"
+#include "roz_2.h"
+#include "roz_3.h"
+#include "BluetoothSerial.h"
 
 // KONFIGURACJA WI-FI
 const char* ssid = "NORA 24";
@@ -38,8 +42,24 @@ bool fetchWithRetry(const String& text, const char* filename, int maxAttempts = 
 Adafruit_VS1053_FilePlayer musicPlayer =
   Adafruit_VS1053_FilePlayer(VS1053_RESET, VS1053_CS, VS1053_DCS, VS1053_DREQ, CARDCS);
 
+BluetoothSerial SerialBT;
+
 void setup() {
   Serial.begin(115200);
+
+  // 1️⃣ Połączenie z Wi-Fi najpierw
+  WiFi.mode(WIFI_STA);  // Ustawienie ESP32 jako klienta Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Łączenie z WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nPołączono z WiFi!");
+
+  // 2️⃣ Inicjalizacja Bluetooth po Wi-Fi
+  SerialBT.begin("ESP32-Terminal", true); // 'true' sprawia, że BT jest widoczny dla parowania
+  Serial.println("Bluetooth aktywowany! Czekam na połączenie...");
 
   // Inicjalizacja SPI z ręcznie ustawionymi pinami
   SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);  
@@ -54,27 +74,19 @@ void setup() {
   tft.drawRGBBitmap(0, 0, roz, 128, 160);
 
   delay(500);
-if (!musicPlayer.begin()) {
+  if (!musicPlayer.begin()) {
     Serial.println("Nie znaleziono VS1053");
-    while (1);
+    //while (1);
   }
-  // Połączenie z Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.print("Łączenie z WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nPołączono z WiFi!");
 
   if (!musicPlayer.begin()) {
     Serial.println("Nie znaleziono VS1053");
-    while (1);
+    //while (1);
   }
 
   if (!SD.begin(CARDCS)) {
     Serial.println("Błąd SD!");
-    while (1);
+    //while (1);
   }
 
   musicPlayer.setVolume(50, 50);
@@ -92,33 +104,60 @@ void loop() {
   //musicPlayer.begin();
   //musicPlayer.setVolume(10, 10);
   //musicPlayer.useInterrupt(VS1053_FILEPLAYER_PIN_INT);
-
+  String userText ="";
   Serial.println("Podaj tekst do przeczytania: ");
-  String userText = readSerialInput();
-  Serial.print("Wczytano: ");
-  Serial.println(userText);
-  String odpowiedz = wyslijZapytanie(userText);
-  Serial.print("Wczytano: ");
-  Serial.println(odpowiedz);
-
-  if(fetchWithRetry(odpowiedz, "/mp3/speach.mp3")){
-    musicPlayer.playFullFile("/mp3/0001.mp3");
-    while(musicPlayer.playingMusic){
-      delay(100);
-    }
-    musicPlayer.playFullFile("/mp3/speach.mp3");
-    while(musicPlayer.playingMusic){
-      delay(100);
-    }
-    musicPlayer.playFullFile("/mp3/speach.mp3");
-    while(musicPlayer.playingMusic){
-      delay(100);
-    }
-    musicPlayer.playFullFile("/mp3/0001.mp3");
-    while(musicPlayer.playingMusic){
-      delay(100);
-    }
+  //String userText = readSerialInput();
+  while (SerialBT.available()) {
+    char c = SerialBT.read();
+    if (c == '\n') break; // Koniec wpisywania, wysyłamy zapytanie
+    userText += c;
   }
+  if(userText!="")
+  {
+    SerialBT.print("Wczytano: ");
+    SerialBT.println(userText);
+    Serial.print("Wczytano: ");
+    Serial.println(userText);
+    SerialBT.end();
+    tft.drawRGBBitmap(0, 0, roz, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+    String odpowiedz = wyslijZapytanie(userText);
+    SerialBT.begin("ESP32-Terminal", true);
+    SerialBT.print("Odebrano: ");
+    SerialBT.println(odpowiedz);
+    Serial.print("Odebrano: ");
+    Serial.println(odpowiedz);
+    tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+    delay(300);
+    tft.drawRGBBitmap(0, 0, roz, 128, 160);
+  }
+  // if(fetchWithRetry(odpowiedz, "/mp3/speach.mp3")){
+  //   musicPlayer.playFullFile("/mp3/0001.mp3");
+  //   while(musicPlayer.playingMusic){
+  //     delay(100);
+  //   }
+  //   musicPlayer.playFullFile("/mp3/speach.mp3");
+  //   while(musicPlayer.playingMusic){
+  //     delay(100);
+  //   }
+  //   musicPlayer.playFullFile("/mp3/speach.mp3");
+  //   while(musicPlayer.playingMusic){
+  //     delay(100);
+  //   }
+  //   musicPlayer.playFullFile("/mp3/0001.mp3");
+  //   while(musicPlayer.playingMusic){
+  //     delay(100);
+  //   }
+  // }
   delay(500);
 }
 
