@@ -2,6 +2,12 @@
 #include <SD.h>
 #include <VS1053.h>               // https://github.com/baldram/ESP_VS1053_Library
 #include <ESP32_VS1053_Stream.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
+#include "roz.h"
+#include "roz_1.h"
+#include "roz_2.h"
+#include "roz_3.h"
 
 #define SPI_CLK_PIN 18
 #define SPI_MISO_PIN 19
@@ -12,7 +18,14 @@
 #define VS1053_DREQ 35
 #define SDREADER_CS 5
 
+#define TFT_CS     2
+#define TFT_RST    4
+#define TFT_DC     16
+#define TFT_SCK    18   // CLK
+#define TFT_MOSI   23   // MOSI
+
 ESP32_VS1053_Stream stream;
+Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
 bool mountSDcard() {
     if (!SD.begin(SDREADER_CS)) {
@@ -40,8 +53,8 @@ void setup() {
     Serial.println("\n\nVS1053 SD Card Playback Example\n");
 
     // Start SPI bus
-    SPI.setHwCs(true);
-    SPI.begin(SPI_CLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
+    //SPI.setHwCs(true);
+    //SPI.begin(SPI_CLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
     // Mount SD card
     if (!mountSDcard()) {
@@ -57,12 +70,25 @@ void setup() {
         while (1) delay(100);
     }
 
+    //INICJALIZACJA WYŚWIETLACZA
+    tft.initR(INITR_BLACKTAB);
+    tft.setRotation(2);
+    tft.fillScreen(ST77XX_BLACK);
+    delay(100);
+    tft.drawRGBBitmap(0, 0, roz, 128, 160);
+
     Serial.println("VS1053 running - starting SD playback");
-
+    tft.drawRGBBitmap(0, 0, roz, 128, 160);
+                    delay(300);
+                    tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+                    delay(300);
+                    tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+                    delay(300);
+                    tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
     // Start playback from an SD file
-    stream.connecttofile(SD, "/music.mp3");
+    stream.connecttofile(SD, "/mp3/nagranie.mp3");
 
-    File f = SD.open("/music.mp3");
+    File f = SD.open("/mp3/nagranie.mp3");
 if (f) {
   Serial.println("✅ Plik istnieje, rozmiar: " + String(f.size()));
   f.close();
@@ -85,4 +111,11 @@ void loop() {
 
 void audio_eof_stream(const char* info) {
     Serial.printf("End of file: %s\n", info);
+    tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
+        delay(300);
+        tft.drawRGBBitmap(0, 0, roz_2, 128, 160);
+        delay(300);
+        tft.drawRGBBitmap(0, 0, roz_1, 128, 160);
+        delay(300);
+        tft.drawRGBBitmap(0, 0, roz, 128, 160);
 }
