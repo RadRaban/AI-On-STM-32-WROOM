@@ -13,14 +13,14 @@
 #define SPI_MISO_PIN 19
 #define SPI_MOSI_PIN 23
 
-#define VS1053_CS 32
-#define VS1053_DCS 33
-#define VS1053_DREQ 35
+#define VS1053_CS 21
+#define VS1053_DCS 17
+#define VS1053_DREQ 16
 #define SDREADER_CS 5
 
 #define TFT_CS     2
 #define TFT_RST    4
-#define TFT_DC     16
+#define TFT_DC     -1
 #define TFT_SCK    18   // CLK
 #define TFT_MOSI   23   // MOSI
 
@@ -86,9 +86,9 @@ void setup() {
                     delay(300);
                     tft.drawRGBBitmap(0, 0, roz_3, 128, 160);
     // Start playback from an SD file
-    stream.connecttofile(SD, "/mp3/nagranie.mp3");
+    stream.connecttofile(SD, "/mp3/ai.mp3");
 
-    File f = SD.open("/mp3/nagranie.mp3");
+    File f = SD.open("/mp3/ai.mp3");
 if (f) {
   Serial.println("✅ Plik istnieje, rozmiar: " + String(f.size()));
   f.close();

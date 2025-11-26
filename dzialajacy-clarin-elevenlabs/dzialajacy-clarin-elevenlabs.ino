@@ -11,9 +11,9 @@
 #define SPI_MISO_PIN 19
 #define SPI_MOSI_PIN 23
 
-#define VS1053_CS 32
-#define VS1053_DCS 33
-#define VS1053_DREQ 35
+#define VS1053_CS 21
+#define VS1053_DCS 17
+#define VS1053_DREQ 16
 #define SDREADER_CS 5
 
 const char* ssid = "NORA 24";
@@ -21,12 +21,12 @@ const char* password = "eloelo520";
 
 const char* host = "api.elevenlabs.io";
 const int httpsPort = 443;
-const char* apiKey = "sk_7997562cf808ec71caf6ab5ff71dcc52ba790be36f628077";  // Twój klucz API
+const char* apiKey = "sk_11edb2a04df7e2cd1f6d2124f683004ebfc52ad0b5073088";  // Twój klucz API
 const char* voiceID = "lehrjHysCyPSvjt0uSy6";                                // lub Twój własny
 const char* clarinToken = "Bearer Zc5hXjQNGnRy64T4wF9QQz9HnNG5KBtYzZNnvK_lQOedR_vm";
 const char* clarinURL = "https://services.clarin-pl.eu/api/v1/oapi/chat/completions";
 //21m00Tcm4TlvDq8ikWAM klasyk
-21m00Tcm4TlvDq8ikWAM
+//21m00Tcm4TlvDq8ikWAM
 // lehrjHysCyPSvjt0uSy6 niby poolski
 ESP32_VS1053_Stream stream;
 
@@ -69,8 +69,8 @@ void setup() {
   Serial.println("\n✅ Połączono z WiFi!");
 
   // Start SPI bus
-  SPI.setHwCs(true);
-  SPI.begin(SPI_CLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
+  // SPI.setHwCs(true);
+  // SPI.begin(SPI_CLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN);
 
   // Mount SD card
   if (!mountSDcard()) {
@@ -85,13 +85,31 @@ void setup() {
     Serial.println("Decoder not running - system halted");
     while (1) delay(100);
   }
+
+  // Start playback from an SD file
+    stream.connecttofile(SD, "/mp3/speach3_clean.mp3");
+
+    File f = SD.open("/mp3/speach3_clean.mp3");
+if (f) {
+  Serial.println("✅ Plik istnieje, rozmiar: " + String(f.size()));
+  f.close();
+} else {
+  Serial.println("❌ Plik nie istnieje!");
+}
+    if (!stream.isRunning()) {
+        Serial.println("No file running - system halted");
+        //while (1) delay(100);
+    }
+
+    Serial.print("Codec: ");
+    Serial.println(stream.currentCodec());
 }
 
 void loop() {
   stream.loop();
   while (Serial.available()) {
     char c = Serial.read();
-    if (c == '\n') {
+    if (c == '\n' || c == '\r') {
       inputText.trim();
       if (inputText.length() > 0) {
         Serial.println("📥 Wpisales tekst: " + inputText);

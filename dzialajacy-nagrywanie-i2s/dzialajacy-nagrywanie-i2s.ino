@@ -3,36 +3,31 @@
 #include <SD.h>
 #include <SPI.h>
 #include <WiFi.h>
-#include <time.h>
 #include "driver/i2s.h"
 
 // ---------------- USER CONFIG ----------------
-#define SD_CS 5            // SD card CS pin
-#define BUTTON_PIN 14      // Push button pin (active LOW)
-#define LED_SYS 13         // External LED: system readiness blink + Recording
-#define SAMPLE_RATE 16000  // 16kHz
+#define SD_CS       5        // SD card CS pin
+#define BUTTON_PIN  14       // Push button pin (active LOW)
+#define SAMPLE_RATE 16000    // 16kHz
 #define BITS_PER_SAMPLE 16
-#define CHANNELS 1
+#define CHANNELS    1
 
 // INMP441 connections
-#define I2S_WS 33   // LRCL / WS
-#define I2S_SD 32   // DOUT from mic
-#define I2S_SCK 26  // BCLK
+#define I2S_WS   33   // LRCL / WS
+#define I2S_SD   32   // DOUT from mic
+#define I2S_SCK  26   // BCLK
 
-const char *ssid = "NORA 24";         // Your SSID here
-const char *password = "eloelo520";   // Your Password here
-const long gmtOffset_sec = 5 * 3600;  // UTC+5
-const int daylightOffset_sec = 0;
+const char* ssid     = "NORA 24"; // Your SSID here
+const char* password = "eloelo520"; // Your Password here
 
 // ---------------- GLOBALS ----------------
-unsigned long startMillis;
 File audioFile;
 bool recording = false;
 int recordCount = 0;
 uint8_t i2sBuffer[1024];
 int16_t sampleBuffer[512];
 int bufIndex = 0;
-
+uint32_t samplesWritten = 0;   // ✅ licznik zapisanych próbek
 
 // ---------------- WAV HELPERS ----------------
 void writeWavHeader(File &f, uint32_t sampleRate, uint16_t bitsPerSample, uint16_t channels) {
@@ -41,43 +36,33 @@ void writeWavHeader(File &f, uint32_t sampleRate, uint16_t bitsPerSample, uint16
   int blockAlign = channels * bitsPerSample / 8;
 
   memcpy(header, "RIFF", 4);
-  *(uint32_t *)(header + 4) = 0;  // placeholder
+  *(uint32_t*)(header + 4) = 0; // placeholder
   memcpy(header + 8, "WAVEfmt ", 8);
-  *(uint32_t *)(header + 16) = 16;
-  *(uint16_t *)(header + 20) = 1;
-  *(uint16_t *)(header + 22) = channels;
-  *(uint32_t *)(header + 24) = sampleRate;
-  *(uint32_t *)(header + 28) = byteRate;
-  *(uint16_t *)(header + 32) = blockAlign;
-  *(uint16_t *)(header + 34) = bitsPerSample;
+  *(uint32_t*)(header + 16) = 16;
+  *(uint16_t*)(header + 20) = 1;
+  *(uint16_t*)(header + 22) = channels;
+  *(uint32_t*)(header + 24) = sampleRate;
+  *(uint32_t*)(header + 28) = byteRate;
+  *(uint16_t*)(header + 32) = blockAlign;
+  *(uint16_t*)(header + 34) = bitsPerSample;
   memcpy(header + 36, "data", 4);
-  *(uint32_t *)(header + 40) = 0;  // placeholder
+  *(uint32_t*)(header + 40) = 0; // placeholder
 
   f.write(header, 44);
 }
 
-void finalizeWav(File &f) {
-  uint32_t fileSize = f.size();
-  uint32_t dataSize = fileSize - 44;
-  uint32_t chunkSize = fileSize - 8;
+void finalizeWav(File &f, uint32_t samplesWritten) {
+  uint32_t dataSize = samplesWritten * sizeof(int16_t);
+  uint32_t chunkSize = dataSize + 36;
 
   f.seek(4);
-  f.write((uint8_t *)&chunkSize, 4);
+  f.write((uint8_t*)&chunkSize, 4);
   f.seek(40);
-  f.write((uint8_t *)&dataSize, 4);
+  f.write((uint8_t*)&dataSize, 4);
 }
-
 // ---------------- FILE NAMING ----------------
 String makeFilename(int count) {
-  struct tm timeinfo;
-  if (!getLocalTime(&timeinfo)) {
-    return String("/INMP441_unknown_" + String(count) + ".wav");
-  }
-  char dateStr[16];
-  strftime(dateStr, sizeof(dateStr), "%Y%m%d", &timeinfo);
-  char fname[32];
-  sprintf(fname, "/I1NMP441_%s_%02d.wav", dateStr, count);
-  return String(fname);
+  return String("/recording.wav");
 }
 
 // ---------------- I2S CONFIG ----------------
@@ -112,6 +97,9 @@ void i2s_init() {
 // ---------------- RECORDING ----------------
 void startRecording() {
   recordCount++;
+  samplesWritten = 0;   // ✅ reset licznika
+  bufIndex = 0;
+
   String filename = makeFilename(recordCount);
   audioFile = SD.open(filename.c_str(), FILE_WRITE);
   if (!audioFile) {
@@ -121,19 +109,23 @@ void startRecording() {
   writeWavHeader(audioFile, SAMPLE_RATE, BITS_PER_SAMPLE, CHANNELS);
   recording = true;
 
-  digitalWrite(LED_SYS, HIGH);  // Built-in LED ON while recording
-
   Serial.print("Recording started: ");
   Serial.println(filename);
 }
 
 void stopRecording() {
   if (!recording) return;
-  finalizeWav(audioFile);
+
+  // ✅ zapisz ostatni fragment bufora
+  if (bufIndex > 0) {
+    audioFile.write((uint8_t*)sampleBuffer, bufIndex * sizeof(int16_t));
+    samplesWritten += bufIndex;
+    bufIndex = 0;
+  }
+
+  finalizeWav(audioFile, samplesWritten);
   audioFile.close();
   recording = false;
-
-  digitalWrite(LED_SYS, LOW);  // Built-in LED OFF when stopped
 
   Serial.println("Recording stopped and saved.");
 }
@@ -155,8 +147,6 @@ void handleButton() {
 void setup() {
   Serial.begin(115200);
   pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LED_SYS, OUTPUT);
-  digitalWrite(LED_SYS, LOW);
 
   // WiFi for NTP
   WiFi.begin(ssid, password);
@@ -167,49 +157,35 @@ void setup() {
   }
   Serial.println(" CONNECTED");
 
-  // NTP
-  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org");
-  struct tm timeinfo;
-  while (!getLocalTime(&timeinfo)) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println(" Time OK");
-
   // SD init
   if (!SD.begin(SD_CS)) {
     Serial.println("SD init failed!");
-    while (1)
-      ;
+    while (1);
   }
   Serial.println("SD OK");
 
   i2s_init();
-  // 🚀 Start nagrywania automatycznie
-  startRecording();
-  startMillis = millis();
 }
 
 // ---------------- LOOP ----------------
 void loop() {
+  handleButton();
+
   if (recording) {
     size_t bytesRead;
-    i2s_read(I2S_NUM_0, (void *)i2sBuffer, sizeof(i2sBuffer), &bytesRead, portMAX_DELAY);
+    i2s_read(I2S_NUM_0, (void*)i2sBuffer, sizeof(i2sBuffer), &bytesRead, portMAX_DELAY);
 
-    int samples = bytesRead / 4;  // 32-bit per sample
-    int32_t *raw = (int32_t *)i2sBuffer;
+    int samples = bytesRead / 4; // 32-bit per sample
+    int32_t *raw = (int32_t*)i2sBuffer;
 
     for (int i = 0; i < samples; i++) {
-      int16_t s = (raw[i] >> 11);  // lepsze przesunięcie niż >>14
+      int16_t s = (raw[i] >> 14); // lepsze przesunięcie niż >>11 convert 32-bit I2S to 16-bit
       sampleBuffer[bufIndex++] = s;
       if (bufIndex >= 512) {
-        audioFile.write((uint8_t *)sampleBuffer, sizeof(sampleBuffer));
+        audioFile.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+        samplesWritten += 512;
         bufIndex = 0;
       }
-    }
-    // zatrzymanie po 60 sekundach
-    if (millis() - startMillis > 10000) {
-      stopRecording();
     }
   }
 }

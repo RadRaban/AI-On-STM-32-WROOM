@@ -9,9 +9,9 @@
 #define SPI_MISO_PIN 19
 #define SPI_MOSI_PIN 23
 
-#define VS1053_CS 32
-#define VS1053_DCS 33
-#define VS1053_DREQ 35
+#define VS1053_CS 21
+#define VS1053_DCS 17
+#define VS1053_DREQ 16
 #define SDREADER_CS 5
 
 const char* ssid = "NORA 24";
