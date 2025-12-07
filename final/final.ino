@@ -7,7 +7,10 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_ST7735.h>
 #include "driver/i2s.h"
+#include "roz.h"
 
 
 #define SPI_CLK_PIN 18
@@ -32,6 +35,13 @@
 #define I2S_SCK  26
 #define TOKENS 150
 
+// WYSWIETLACZ connections
+#define TFT_CS     2
+#define TFT_RST    4
+#define TFT_DC     25
+#define TFT_SCK    18   // CLK
+#define TFT_MOSI   23   // MOSI
+
 const char* ssid = "NORA 24";
 const char* password = "eloelo520";
 
@@ -45,6 +55,7 @@ const char* clarinURL = "https://services.clarin-pl.eu/api/v1/oapi/chat/completi
 //21m00Tcm4TlvDq8ikWAM
 // lehrjHysCyPSvjt0uSy6 niby poolski
 ESP32_VS1053_Stream stream;
+Adafruit_ST7735 tft = Adafruit_ST7735(&SPI, TFT_CS, TFT_DC, TFT_RST);
 
 String inputText = "";
 String odpowiedz = "";
@@ -58,21 +69,24 @@ int16_t sampleBuffer[512];
 int bufIndex = 0;
 uint32_t samplesWritten = 0;
 
-
 bool mountSDcard() {
-  if (!SD.begin(SDREADER_CS)) {
-    Serial.println("Card mount failed");
+  SPI.begin(18, 19, 23, SDREADER_CS); // SCK=18, MISO=19, MOSI=23, CS=SDREADER_CS
+if (!SD.begin(SDREADER_CS)) {
+  Serial.println("Karta SD FAILED");
+    tft.println("\n Karta SD FAILED");
     return false;
-  }
+}
 
   uint8_t cardType = SD.cardType();
   if (cardType == CARD_NONE) {
-    Serial.println("No SD card attached");
+    Serial.println("Brak karty SD");
+    tft.println("\n Brak karty SD");
     return false;
   }
 
   uint64_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %lluMB\n", cardSize);
+  Serial.printf("SD Rozmiar: %lluMB\n", cardSize);
+  tft.printf("\n SD Rozmiar: %lluMB\n", cardSize);
   return true;
 }
 
@@ -83,15 +97,29 @@ void setup() {
   while (!Serial)
     delay(10);
 
-  Serial.println("\n\nVS1053 SD Card Playback Example\n");
+  //Inicjalizacja Wyświetlacza
+  //SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);  
+  tft.initR(INITR_BLACKTAB);
+  tft.setRotation(2);
+  tft.fillScreen(ST77XX_BLACK);
+  delay(100);
+  tft.setTextColor(ST77XX_GREEN);   // kolor tekstu
+  tft.setTextSize(1);               // wielkość czcionki (1 = najmniejsza)
+  tft.setCursor(10, 10);
+  tft.print("Wyswietlacz OK");
+  tft.print("\n Guzik OK");
+  //tft.drawRGBBitmap(0, 0, roz, 128, 160);
 
   WiFi.begin(ssid, password);
   Serial.print("Łączenie z WiFi");
+  tft.print("\n Laczenie z WiFi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
+    tft.print(".");
   }
-  Serial.println("\n✅ Połączono z WiFi!");
+  Serial.println("\nPołączono z WiFi!");
+  tft.println("\n WiFi OK");
 
   // Start SPI bus
   // SPI.setHwCs(true);
@@ -100,37 +128,44 @@ void setup() {
   // Mount SD card
   if (!mountSDcard()) {
     Serial.println("SD init failed!");
+    tft.println("\n SD init failed!");
     while (1) delay(100);
   }
   Serial.println("SD OK");
-
-  Serial.println("SD card mounted - starting decoder...");
+  tft.println("\n SD OK");
 
   i2s_init();
+  tft.println("\n Mikrofon OK");
 
   // Initialize the VS1053 decoder
   if (!stream.startDecoder(VS1053_CS, VS1053_DCS, VS1053_DREQ) || !stream.isChipConnected()) {
-    Serial.println("Decoder not running - system halted");
+    Serial.println("Odtwarzacz FAILED");
+    tft.println("\n Odtwarzacz FAILED");
     while (1) delay(100);
   }
+  tft.println("\n Odtwarzacz OK");
 
   // Start playback from an SD file
     stream.connecttofile(SD, "/mp3/ai.mp3");
 
     File f = SD.open("/mp3/ai.mp3");
-if (f) {
-  Serial.println("✅ Plik istnieje, rozmiar: " + String(f.size()));
-  f.close();
-} else {
-  Serial.println("❌ Plik nie istnieje!");
-}
-    if (!stream.isRunning()) {
-        Serial.println("No file running - system halted");
-        //while (1) delay(100);
-    }
+  if (f) {
+    Serial.println("Plik istnieje, rozmiar: " + String(f.size()));
+    f.close();
+  } else {
+    Serial.println("Plik nie istnieje!");
+    tft.println("\n Plik nie istnieje!");
+  }
 
-    Serial.print("Codec: ");
-    Serial.println(stream.currentCodec());
+  if (!stream.isRunning()) {
+      Serial.println("VS1053 FAILED");
+      tft.println("\n VS1053 FAILED");
+      //while (1) delay(100);
+  }
+  tft.println("\n Plik OK");
+
+  Serial.print("Codec: ");
+  Serial.println(stream.currentCodec());
 }
 
 void loop() {
@@ -159,7 +194,8 @@ void loop() {
     }
   //}
   if (!stream.isRunning() && isPlaying) {
-    Serial.println("✅ Gotowe. Wpisz kolejny tekst:");
+    Serial.println("Gotowe. Wpisz kolejny tekst:");
+    tft.println("\n Gotowe. Wpisz kolejny tekst:");
     isPlaying = false;
   }
 
@@ -269,13 +305,15 @@ bool fetchTextFromElevenLabs(const String& filename) {
   client.setInsecure();
 
   if (!client.connect(host, httpsPort)) {
-    Serial.println("❌ Brak połączenia z ElevenLabs");
+    Serial.println("Brak połączenia z ElevenLabs");
+    tft.println("\n Brak polaczenia z ElevenLabs");
     return false;
   }
 
   File audioFile = SD.open(filename.c_str(), FILE_READ);
   if (!audioFile) {
-    Serial.println("❌ Nie można otworzyć pliku WAV");
+    Serial.println("Nie można otworzyć pliku WAV");
+    tft.println("\n Nie mozna otworzyc pliku WAV");
     return false;
   }
 
@@ -327,6 +365,7 @@ bool fetchTextFromElevenLabs(const String& filename) {
     Serial.println("✅ Transkrypcja: " + transcript);
   } else {
     Serial.println("⚠️ Nie znaleziono pola 'text' w odpowiedzi");
+    tft.println("\n Nie znaleziono pola 'text' w odpowiedzi");
   }
   Serial.println("📥 Wpisales tekst: " + transcript);
         String odpowiedz = wyslijZapytanie(transcript);
@@ -353,13 +392,16 @@ void startRecording() {
   String filename = makeFilename();
   audioFile = SD.open(filename.c_str(), FILE_WRITE);
   if (!audioFile) {
-    Serial.println("File open failed!");
+    Serial.println("Otwarcie pliku FAILED");
+    tft.println("\n Otwarcie pliku FAILED");
     return;
   }
   writeWavHeader(audioFile, SAMPLE_RATE, BITS_PER_SAMPLE, CHANNELS);
   recording = true;
 
-  Serial.println("🎙️ Recording started...");
+  Serial.println("🎙️ Start Nagrywania...");
+  tft.println("\n Start Nagrywania...");
+  tft.drawRGBBitmap(0, 0, roz, 128, 160);
 }
 
 void stopRecording() {
@@ -375,7 +417,8 @@ void stopRecording() {
   audioFile.close();
   recording = false;
 
-  Serial.println("💾 Recording stopped and saved.");
+  Serial.println("💾 Koniec Nagrywania.");
+  tft.println("\n Koniec Nagrywania");
 
   // ✅ od razu transkrypcja
   fetchTextFromElevenLabs("/recording.wav");
@@ -424,11 +467,14 @@ String wyslijZapytanie(String inputText) {
     if (!error) {
       return doc["choices"][0]["message"]["content"].as<String>();
     } else {
-      Serial.println("❌ Błąd parsowania JSON-a!");
+      Serial.println("Błąd parsowania JSON-a!");
+      tft.println("\n Blad parsowania JSON-a!");
     }
   } else {
-    Serial.print("❌ Błąd HTTP: ");
+    Serial.print("Błąd HTTP: ");
+    tft.print("\n Blad HTTP: ");
     Serial.println(responseCode);
+    tft.println(responseCode);
   }
 
   http.end();
@@ -450,7 +496,8 @@ bool fetchSpeechFromElevenLabs(const String& text, const String& filename) {
   Serial.println("🔽 Pobieram MP3 z ElevenLabs dla: " + text);
 
   if (!client.connect(host, httpsPort)) {
-    Serial.println("❌ Brak połączenia z ElevenLabs");
+    Serial.println("Brak połączenia z ElevenLabs");
+    tft.println("\n Brak polaczenia z ElevenLabs");
     return false;
   }
 
@@ -464,7 +511,8 @@ bool fetchSpeechFromElevenLabs(const String& text, const String& filename) {
 
   File file = SD.open(filename.c_str(), FILE_WRITE);
   if (!file) {
-    Serial.println("❌ Nie można zapisać pliku na SD");
+    Serial.println("Nie można zapisać pliku na SD");
+    tft.println("\n Nie mozna zapisac pliku na SD");
     return false;
   }
 
@@ -481,7 +529,8 @@ bool fetchSpeechFromElevenLabs(const String& text, const String& filename) {
       }
     } else {
       if (millis() - startTime > timeout) {
-        Serial.println("⚠️ Timeout podczas pobierania MP3");
+        Serial.println("Timeout podczas pobierania MP3");
+        tft.println("\n Timeout podczas pobierania MP3");
         break;
       }
       delay(10);
@@ -513,13 +562,15 @@ void audio_eof_stream(const char* info) {
 bool cleanMP3File(const String& sourcePath, const String& destPath, size_t skipBytes) {
   File source = SD.open(sourcePath, FILE_READ);
   if (!source) {
-    Serial.println("❌ Nie można otworzyć pliku źródłowego");
+    Serial.println("Nie można otworzyć pliku źródłowego");
+    tft.println("\n Nie mozna otworzyc pliku zródłowego");
     return false;
   }
 
   File dest = SD.open(destPath, FILE_WRITE);
   if (!dest) {
-    Serial.println("❌ Nie można utworzyć pliku docelowego");
+    Serial.println("Nie można utworzyć pliku docelowego");
+    tft.println("\n Nie mozna utworzyc pliku docelowego");
     source.close();
     return false;
   }

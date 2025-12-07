@@ -9,7 +9,7 @@
 #define TFT_SCK    18   // CLK
 #define TFT_MOSI   23   // MOSI
 
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+Adafruit_ST7735 tft = Adafruit_ST7735(&SPI, TFT_CS, TFT_DC, TFT_RST);
 
 void setup() {
     Serial.begin(115200);
@@ -23,7 +23,13 @@ void setup() {
     tft.fillScreen(ST77XX_BLACK);
     delay(100);
     // Wyświetlenie obrazu
-    tft.drawRGBBitmap(0, 0, roz, 128, 160);
+    //tft.drawRGBBitmap(0, 0, roz, 128, 160);
+    // Ustawienia tekstu
+    tft.setTextColor(ST77XX_GREEN);   // kolor tekstu
+    tft.setTextSize(1);               // wielkość czcionki (1 = najmniejsza)
+    tft.setCursor(10, 10);
+    // Wyświetlenie napisu
+    tft.print("Hello Rad!");
 }
 
 
