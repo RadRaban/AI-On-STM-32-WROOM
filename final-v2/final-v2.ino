@@ -10,10 +10,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include "driver/i2s.h"
-#include "mowi.h"
-#include "mysli.h"
-#include "pije.h"
-#include "sluchanie.h"
+//#include "roz.h"
 
 
 #define SPI_CLK_PIN 18
@@ -50,7 +47,7 @@ const char* password = "eloelo520";
 
 const char* host = "api.elevenlabs.io";
 const int httpsPort = 443;
-const char* apiKey = "sk_22c8f625930c3364e5a58a08c77738039a32ab89258f5eb5";  // Twój klucz API
+const char* apiKey = "sk_486b0ac7758d7790ecb8d1eeabb56dac9bd6ddf9b01c2d18";  // Twój klucz API
 const char* voiceID = "lehrjHysCyPSvjt0uSy6";                                // lub Twój własny
 const char* clarinToken = "Bearer Zc5hXjQNGnRy64T4wF9QQz9HnNG5KBtYzZNnvK_lQOedR_vm";
 const char* clarinURL = "https://services.clarin-pl.eu/api/v1/oapi/chat/completions";
@@ -104,9 +101,9 @@ void setup() {
   //SPI.begin(TFT_SCK, -1, TFT_MOSI, TFT_CS);  
   tft.initR(INITR_BLACKTAB);
   tft.setRotation(2);
-  tft.fillScreen(ST77XX_BLACK);
+  tft.fillScreen(ST77XX_WHITE);
   delay(100);
-  tft.setTextColor(ST77XX_GREEN);   // kolor tekstu
+  tft.setTextColor(ST77XX_MAGENTA);   // kolor tekstu
   tft.setTextSize(1);               // wielkość czcionki (1 = najmniejsza)
   tft.setCursor(10, 10);
   tft.print("Wyswietlacz OK");
@@ -149,7 +146,6 @@ void setup() {
   tft.println("\n Odtwarzacz OK");
 
   // Start playback from an SD file
-  tft.drawRGBBitmap(0, 0, mowi, 128, 160);
     stream.connecttofile(SD, "/mp3/ai.mp3");
 
     File f = SD.open("/mp3/ai.mp3");
@@ -176,36 +172,37 @@ void setup() {
 void loop() {
   stream.loop();
   //while (Serial.available()) {
-    handleButton();
+  handleButton();
 
-    if (recording) {
-      size_t bytesRead;
-      i2s_read(I2S_NUM_0, (void*)i2sBuffer, sizeof(i2sBuffer), &bytesRead, portMAX_DELAY);
+  if (recording) {
+    size_t bytesRead;
+    i2s_read(I2S_NUM_0, (void*)i2sBuffer, sizeof(i2sBuffer), &bytesRead, portMAX_DELAY);
 
-      // Każda próbka z I2S ma 32 bity; konwertujemy na 16-bit
-      int samples = bytesRead / 4;
-      int32_t* raw = (int32_t*)i2sBuffer;
+    // Każda próbka z I2S ma 32 bity; konwertujemy na 16-bit
+    int samples = bytesRead / 4;
+    int32_t* raw = (int32_t*)i2sBuffer;
 
-      for (int i = 0; i < samples; i++) {
-        int16_t s = (raw[i] >> 14);  // skalowanie/konwersja 32->16 bit
-        sampleBuffer[bufIndex++] = s;
+    for (int i = 0; i < samples; i++) {
+      int16_t s = (raw[i] >> 14);  // skalowanie/konwersja 32->16 bit
+      sampleBuffer[bufIndex++] = s;
 
-        if (bufIndex >= 512) {
-          audioFile.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
-          samplesWritten += 512;
-          bufIndex = 0;
-        }
+      if (bufIndex >= 512) {
+        audioFile.write((uint8_t*)sampleBuffer, sizeof(sampleBuffer));
+        samplesWritten += 512;
+        bufIndex = 0;
+        stream.loop();  // ✅ Odświeżaj co bufor
       }
     }
-  //}
+  }
   if (!stream.isRunning() && isPlaying) {
     Serial.println("Gotowe. Wpisz kolejny tekst:");
     tft.println("\n Gotowe. Wpisz kolejny tekst:");
-    tft.drawRGBBitmap(0, 0, pije, 128, 160);
+    drawRaw("pije");
     isPlaying = false;
+    
   }
 
-  delay(10);
+  delay(20);
 }
 
 
@@ -213,7 +210,7 @@ void loop() {
 void drawRaw(const char *animacja) {
   const char *filename = "pije";
   if(animacja == "pije"){
-    filename = "/raw/przyklada/przyklada_050.raw";
+    filename = "/raw/odstawienie/odstawienie_001.raw";
   } else if (animacja == "sluchanie"){
     filename = "/raw/sluchanie/sluchanie_051.raw";
   } else if (animacja == "mysli"){
@@ -337,6 +334,43 @@ String cleanText(String input) {
   return output;
 }
 
+bool cleanMP3File(const String& sourcePath, const String& destPath, size_t maxSkip = 1024) {
+  File source = SD.open(sourcePath, FILE_READ);
+  if (!source) return false;
+  
+  // Szukaj początku MP3 (FF Fx)
+  size_t skipBytes = 0;
+  uint8_t prev = 0;
+  while (source.available() && skipBytes < maxSkip) {
+    uint8_t byte = source.read();
+    if (prev == 0xFF && (byte & 0xE0) == 0xE0) {
+      source.seek(skipBytes - 1);  // Cofnij do FF
+      break;
+    }
+    prev = byte;
+    skipBytes++;
+  }
+  
+  Serial.printf("Pomijam %d bajtów\n", skipBytes);
+  
+  File dest = SD.open(destPath, FILE_WRITE);
+  if (!dest) {
+    source.close();
+    return false;
+  }
+  
+  uint8_t buffer[512];
+  while (source.available()) {
+    size_t len = source.read(buffer, sizeof(buffer));
+    dest.write(buffer, len);
+    stream.loop();  // ✅ Odświeżaj VS1053 podczas kopiowania
+  }
+  
+  source.close();
+  dest.close();
+  return true;
+}
+
 // ---------------- STT FUNCTION ----------------
 bool fetchTextFromElevenLabs(const String& filename) {
   WiFiClientSecure client;
@@ -414,7 +448,15 @@ bool fetchTextFromElevenLabs(const String& filename) {
         // Pobierz i odtwórz
         if (fetchSpeechFromElevenLabs(czystaOdpowiedz, "/mp3/speach3.mp3")) {
           cleanMP3File("/mp3/speach3.mp3", "/mp3/speach3_clean.mp3", 5);
-          tft.drawRGBBitmap(0, 0, mowi, 128, 160);
+          
+          // ✅ Zatrzymaj poprzednie odtwarzanie
+          stream.stopSong();
+          drawRaw("mowi");
+          delay(100);
+          
+          stream.loop();
+          
+          
           stream.connecttofile(SD, "/mp3/speach3_clean.mp3");
         }
 
@@ -439,28 +481,27 @@ void startRecording() {
   drawRaw("sluchanie");
   Serial.println("🎙️ Start Nagrywania...");
   tft.println("\n Start Nagrywania...");
-  tft.drawRGBBitmap(0, 0, sluchanie, 128, 160);
   //tft.drawRGBBitmap(0, 0, roz, 128, 160);
 }
 
 void stopRecording() {
   if (!recording) return;
-
+  
+  // Zapis bufora
   if (bufIndex > 0) {
     audioFile.write((uint8_t*)sampleBuffer, bufIndex * sizeof(int16_t));
     samplesWritten += bufIndex;
     bufIndex = 0;
   }
-
+  
   finalizeWav(audioFile, samplesWritten);
   audioFile.close();
   recording = false;
+  stream.loop();  // ✅ Dodaj
+  
   drawRaw("mysli");
-  Serial.println("💾 Koniec Nagrywania.");
-  tft.println("\n Koniec Nagrywania");
-  tft.drawRGBBitmap(0, 0, mysli, 128, 160);
-
-  // ✅ od razu transkrypcja
+  stream.loop();  // ✅ Dodaj
+  
   fetchTextFromElevenLabs("/recording.wav");
 }
 
@@ -596,38 +637,6 @@ bool fetchSpeechFromElevenLabs(const String& text, const String& filename) {
 
 
 void audio_eof_stream(const char* info) {
-  Serial.printf("End of file: %s\n", info);
   drawRaw("pije");
-}
-
-bool cleanMP3File(const String& sourcePath, const String& destPath, size_t skipBytes) {
-  File source = SD.open(sourcePath, FILE_READ);
-  if (!source) {
-    Serial.println("Nie można otworzyć pliku źródłowego");
-    tft.println("\n Nie mozna otworzyc pliku zródłowego");
-    return false;
-  }
-
-  File dest = SD.open(destPath, FILE_WRITE);
-  if (!dest) {
-    Serial.println("Nie można utworzyć pliku docelowego");
-    tft.println("\n Nie mozna utworzyc pliku docelowego");
-    source.close();
-    return false;
-  }
-
-  // Pomijanie bajtów
-  source.seek(skipBytes);
-
-  uint8_t buffer[512];
-  while (source.available()) {
-    size_t len = source.read(buffer, sizeof(buffer));
-    dest.write(buffer, len);
-  }
-
-  source.close();
-  dest.close();
-  drawRaw("mowi");
-  Serial.println("✅ Plik oczyszczony zapisany jako: " + String(destPath));
-  return true;
+  Serial.printf("End of file: %s\n", info);
 }

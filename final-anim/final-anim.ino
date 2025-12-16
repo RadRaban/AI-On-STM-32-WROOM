@@ -10,10 +10,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_ST7735.h>
 #include "driver/i2s.h"
-#include "mowi.h"
-#include "mysli.h"
-#include "pije.h"
-#include "sluchanie.h"
+#include "roz.h"
 
 
 #define SPI_CLK_PIN 18
@@ -71,6 +68,9 @@ uint8_t i2sBuffer[1024];
 int16_t sampleBuffer[512];
 int bufIndex = 0;
 uint32_t samplesWritten = 0;
+
+// globalna zmienna sterująca
+String currentAnimation = "pije";
 
 bool mountSDcard() {
   SPI.begin(18, 19, 23, SDREADER_CS); // SCK=18, MISO=19, MOSI=23, CS=SDREADER_CS
@@ -149,7 +149,6 @@ void setup() {
   tft.println("\n Odtwarzacz OK");
 
   // Start playback from an SD file
-  tft.drawRGBBitmap(0, 0, mowi, 128, 160);
     stream.connecttofile(SD, "/mp3/ai.mp3");
 
     File f = SD.open("/mp3/ai.mp3");
@@ -167,10 +166,15 @@ void setup() {
       //while (1) delay(100);
   }
   tft.println("\n Plik OK");
+tft.println("\n Animacja OK");
+delay(1000);
+  // uruchomienie tasku animacji
+    xTaskCreate(animTask, "Animacja", 8192, NULL, 1, NULL);
+
 
   Serial.print("Codec: ");
-  drawRaw("mowi");
   Serial.println(stream.currentCodec());
+  currentAnimation = "mowi";
 }
 
 void loop() {
@@ -201,27 +205,13 @@ void loop() {
   if (!stream.isRunning() && isPlaying) {
     Serial.println("Gotowe. Wpisz kolejny tekst:");
     tft.println("\n Gotowe. Wpisz kolejny tekst:");
-    tft.drawRGBBitmap(0, 0, pije, 128, 160);
     isPlaying = false;
   }
 
   delay(10);
 }
 
-
-
-void drawRaw(const char *animacja) {
-  const char *filename = "pije";
-  if(animacja == "pije"){
-    filename = "/raw/przyklada/przyklada_050.raw";
-  } else if (animacja == "sluchanie"){
-    filename = "/raw/sluchanie/sluchanie_051.raw";
-  } else if (animacja == "mysli"){
-    filename = "/raw/sluchanie/sluchanie_001.raw";
-  } else if (animacja == "mowi"){
-    filename = "/raw/mowi/mowi_020.raw";
-  }
-
+void drawRaw(const char *filename) {
     File f = SD.open(filename);
     if (!f) return;
 
@@ -235,6 +225,33 @@ void drawRaw(const char *animacja) {
         tft.drawRGBBitmap(0, y, lineBuffer, 128, 1);
     }
     f.close();
+}
+
+void playAnimation(const char* folder, int frames) {
+    char filename[64];
+    for (int i = 1; i <= frames; i++) {
+        sprintf(filename, "/raw/%s/%s_%03d.raw", folder, folder, i);
+        drawRaw(filename);
+        vTaskDelay(100 / portTICK_PERIOD_MS); // zamiast delay()
+    }
+}
+
+// Task animacji
+void animTask(void *pvParameters) {
+    while (1) {
+        if (currentAnimation == "pije") {
+            playAnimation("pije", 50);
+        } else if (currentAnimation == "odstawienie") {
+            playAnimation("odstawienie", 49);
+        } else if (currentAnimation == "sluchanie") {
+            playAnimation("sluchanie", 51);
+        } else if (currentAnimation == "mowi") {
+            playAnimation("mowi", 50);
+        } else if (currentAnimation == "przyklada") {
+            playAnimation("przyklada", 50);
+        }
+        // możesz dodać więcej animacji
+    }
 }
 
 // ---------------- WAV HELPERS ----------------
@@ -324,7 +341,7 @@ String cleanText(String input) {
         if (c == '/' || c == '?') continue;
         if (c == '[' || c == ']') continue;
         if (c == '(' || c == ')') continue;
-
+        if (c == '0' || c == ']') continue;
     // Pomijamy emotki (UTF-8 4‑bajtowe)
     if ((uint8_t)c >= 0xF0) {
       i += 3; 
@@ -414,7 +431,7 @@ bool fetchTextFromElevenLabs(const String& filename) {
         // Pobierz i odtwórz
         if (fetchSpeechFromElevenLabs(czystaOdpowiedz, "/mp3/speach3.mp3")) {
           cleanMP3File("/mp3/speach3.mp3", "/mp3/speach3_clean.mp3", 5);
-          tft.drawRGBBitmap(0, 0, mowi, 128, 160);
+          currentAnimation = "mowi";
           stream.connecttofile(SD, "/mp3/speach3_clean.mp3");
         }
 
@@ -427,6 +444,7 @@ bool fetchTextFromElevenLabs(const String& filename) {
 void startRecording() {
   samplesWritten = 0;
   bufIndex = 0;
+
   String filename = makeFilename();
   audioFile = SD.open(filename.c_str(), FILE_WRITE);
   if (!audioFile) {
@@ -436,11 +454,11 @@ void startRecording() {
   }
   writeWavHeader(audioFile, SAMPLE_RATE, BITS_PER_SAMPLE, CHANNELS);
   recording = true;
-  drawRaw("sluchanie");
+
   Serial.println("🎙️ Start Nagrywania...");
+  currentAnimation = "sluchanie";
   tft.println("\n Start Nagrywania...");
-  tft.drawRGBBitmap(0, 0, sluchanie, 128, 160);
-  //tft.drawRGBBitmap(0, 0, roz, 128, 160);
+  tft.drawRGBBitmap(0, 0, roz, 128, 160);
 }
 
 void stopRecording() {
@@ -455,10 +473,9 @@ void stopRecording() {
   finalizeWav(audioFile, samplesWritten);
   audioFile.close();
   recording = false;
-  drawRaw("mysli");
+
   Serial.println("💾 Koniec Nagrywania.");
   tft.println("\n Koniec Nagrywania");
-  tft.drawRGBBitmap(0, 0, mysli, 128, 160);
 
   // ✅ od razu transkrypcja
   fetchTextFromElevenLabs("/recording.wav");
@@ -597,37 +614,39 @@ bool fetchSpeechFromElevenLabs(const String& text, const String& filename) {
 
 void audio_eof_stream(const char* info) {
   Serial.printf("End of file: %s\n", info);
-  drawRaw("pije");
+  currentAnimation = "pije";
 }
 
 bool cleanMP3File(const String& sourcePath, const String& destPath, size_t skipBytes) {
   File source = SD.open(sourcePath, FILE_READ);
   if (!source) {
     Serial.println("Nie można otworzyć pliku źródłowego");
-    tft.println("\n Nie mozna otworzyc pliku zródłowego");
     return false;
   }
 
+  SD.remove(destPath); // usuń jeśli istnieje
   File dest = SD.open(destPath, FILE_WRITE);
   if (!dest) {
     Serial.println("Nie można utworzyć pliku docelowego");
-    tft.println("\n Nie mozna utworzyc pliku docelowego");
     source.close();
     return false;
   }
 
-  // Pomijanie bajtów
-  source.seek(skipBytes);
+  if (!source.seek(skipBytes)) {
+    Serial.println("Seek poza zakresem pliku!");
+    source.close();
+    dest.close();
+    return false;
+  }
 
   uint8_t buffer[512];
   while (source.available()) {
     size_t len = source.read(buffer, sizeof(buffer));
-    dest.write(buffer, len);
+    if (len > 0) dest.write(buffer, len);
   }
 
   source.close();
   dest.close();
-  drawRaw("mowi");
   Serial.println("✅ Plik oczyszczony zapisany jako: " + String(destPath));
   return true;
 }
